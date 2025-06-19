@@ -6,6 +6,32 @@
 
 #import <UIKit/UIKit.h>
 
+static NSSet *blockedViewClasses;
+
+__attribute__((constructor))
+static void initializeBlockedViewClasses() {
+    blockedViewClasses = [NSSet setWithArray:@[
+        @"UIVisualEffectView",
+        @"SwiftMessagesView",
+        @"ADLaunchView",
+        @"AdSkipView",
+        @"TeenagerModeAlertView",   
+        @"YouthModePopView",          
+        @"WBAgeAlertView",            
+        @"BiliTeenagerModeView",      
+        @"StartupPopView",           
+        @"UpgradeAlertView",         
+        @"PopupContainerView",        
+        @"CustomAlertView",           
+        @"AlertMaskView"             
+        // 添加其他需要屏蔽的类名
+    ]];
+}
+
+static BOOL isViewBlocked(UIView *view) {
+    return [blockedViewClasses containsObject:NSStringFromClass([view class])];
+}
+
 %hook UIApplication
 
 - (void)openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenExternalURLOptionsKey, id> *)options completionHandler:(void (^)(BOOL success))completion {
@@ -51,19 +77,25 @@
 - (void)didMoveToWindow {
     %orig;
 
-    // 通过类名移除"恭喜"弹窗
-    if ([self isKindOfClass:%c(SwiftMessagesView)]) {
-        self.hidden = YES;
-        
-        UIView *superview = self.superview;
-        if (superview) {
-            for (UIView *sibling in superview.subviews) {
-                if ([sibling isKindOfClass:%c(UIVisualEffectView)]) {
-                    sibling.hidden = YES;
-                    break;
-                }
+    if (self.window && isViewBlocked(self)) {
+        UIView *currentView = self;
+        UIView *topView = self;
+
+        while (currentView.superview) {
+            currentView = currentView.superview;
+
+            if ([currentView isKindOfClass:[UIWindow class]]) break;
+            if ([currentView.nextResponder isKindOfClass:[UIViewController class]]) {
+                topView = currentView;
+            }
+
+            if (currentView.frame.size.width > topView.frame.size.width * 0.8 &&
+                currentView.frame.size.height > topView.frame.size.height * 0.8) {
+                topView = currentView;
             }
         }
+
+        topView.hidden = YES;
     }
 }
 
